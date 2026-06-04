@@ -120,7 +120,15 @@ details[open] summary::before{content:"▼ ";}
 
 <!-- ===== SOLID ===== -->
 <div id="mode-solid" class="mode-panel">
-  <div class="field"><label>FONKSİYON f(x) — X ekseni etrafında döndür</label>
+  <div class="field"><label>HACİM YÖNTEMİ</label>
+    <select id="s-method">
+      <option value="disk">Disk  ·  y = c ekseni etrafında</option>
+      <option value="washer">Pul / Washer  ·  iki eğri arası</option>
+      <option value="shell">Kabuk / Shell  ·  x = c ekseni etrafında</option>
+      <option value="cross">Kesit Hacmi  ·  dik kesitler</option>
+    </select>
+  </div>
+  <div class="field"><label id="s-fn-lbl">FONKSİYON f(x) — döndürülecek eğri</label>
     <input id="s-fn" value="sin(x)+1.2" autocomplete="off" spellcheck="false">
     <div class="chips" id="s-pre">
       <span class="chip" data-f="sin(x)+1.2">sin x+1.2</span><span class="chip" data-f="sqrt(x)">√x</span>
@@ -128,20 +136,35 @@ details[open] summary::before{content:"▼ ";}
       <span class="chip" data-f="cos(x)+2">cos x+2</span><span class="chip" data-f="exp(-x/2)+0.5">e^-x/2+.5</span>
     </div>
   </div>
-  <div class="row">
-    <div class="field"><label>ALT SINIR a</label><input id="s-a" value="0" autocomplete="off"></div>
-    <div class="field"><label>ÜST SINIR b</label><input id="s-b" value="3" autocomplete="off"></div>
+  <div class="field" id="s-grow-wrap" style="display:none"><label>İÇ FONKSİYON g(x) — pulun deliği</label>
+    <input id="s-gn" value="0.4*x" autocomplete="off" spellcheck="false">
+    <div class="chips" id="s-gpre">
+      <span class="chip g" data-g="0.4*x">0.4x</span><span class="chip g" data-g="0">0</span>
+      <span class="chip g" data-g="sin(x)/2">sin x/2</span><span class="chip g" data-g="0.5">0.5</span>
+    </div>
   </div>
-  <div class="field"><label>DİSK SAYISI n = <span class="sv" id="s-nv">16</span></label>
+  <div class="field" id="s-shape-wrap" style="display:none"><label>KESİT ŞEKLİ — tabana dik</label>
+    <select id="s-shape">
+      <option value="square">Kare</option>
+      <option value="tri">Eşkenar Üçgen</option>
+      <option value="semi">Yarım Daire</option>
+    </select>
+  </div>
+  <div class="row">
+    <div class="field"><label>ALT a</label><input id="s-a" value="0" autocomplete="off"></div>
+    <div class="field"><label>ÜST b</label><input id="s-b" value="3" autocomplete="off"></div>
+    <div class="field" id="s-axis-wrap"><label id="s-axis-lbl">EKSEN y=c</label><input id="s-c" value="0" autocomplete="off"></div>
+  </div>
+  <div class="field"><label>DİLİM SAYISI n = <span class="sv" id="s-nv">16</span></label>
     <input type="range" id="s-n" min="3" max="80" value="16"></div>
-  <div class="btnrow"><button class="pri" id="s-anim">▶ Döndür</button><button class="sec" id="s-reset">↺ Sıfırla</button></div>
+  <div class="btnrow"><button class="pri" id="s-anim">▶ Animasyon</button><button class="sec" id="s-reset">↺ Sıfırla</button></div>
   <div class="results">
     <div class="rl ra"><span>Yaklaşık Hacim Vₙ</span><span class="v" id="s-approx">—</span></div>
     <div class="rl re"><span>Gerçek Hacim V</span><span class="v" id="s-exact">—</span></div>
     <div class="rl rerr"><span>Mutlak Hata</span><span class="v" id="s-err">—</span></div>
   </div>
   <div class="err" id="s-errmsg"></div>
-  <details><summary>Adım Adım Disk Yöntemi Formülü</summary><div class="steps-inner" id="s-steps"></div></details>
+  <details><summary>Adım Adım Hacim Formülü</summary><div class="steps-inner" id="s-steps"></div></details>
 </div>
 
 <!-- ===== BETWEEN ===== -->
@@ -262,7 +285,7 @@ let WG=new THREE.Group(); scene.add(WG);
 const PLOT_W=9, DEPTH=1.6;
 let TR={sx:1,ox:0,sy:1};
 
-function clearWorld(){scene.remove(WG);WG=new THREE.Group();scene.add(WG);}
+function clearWorld(){scene.remove(WG);WG=new THREE.Group();scene.add(WG);if(typeof solidMeshes!=='undefined')solidMeshes=[];}
 
 function addGrid(y){const g=new THREE.GridHelper(PLOT_W+3,12,0x30363d,0x1a2133);g.position.y=y;WG.add(g);}
 
@@ -432,118 +455,306 @@ function buildRiemannSteps(f,a,b,n,meth,dx,approx){
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   SOLID OF REVOLUTION MODE
+   SOLID / VOLUME MODE — Disk · Washer · Shell · Cross-section
 ═══════════════════════════════════════════════════════════════ */
-let solidMesh=null, solidAnimT=null;
+let solidMeshes=[], solidAnimT=null, solidData=null;
+const CROSS_K={square:1, tri:Math.sqrt(3)/4, semi:Math.PI/8};
+const CROSS_NAME={square:'Kare (h²)', tri:'Eşkenar üçgen (√3/4·h²)', semi:'Yarım daire (π/8·h²)'};
+
+function solidUI(){
+  const m=document.getElementById('s-method').value;
+  document.getElementById('s-grow-wrap').style.display = m==='washer'?'flex':'none';
+  document.getElementById('s-shape-wrap').style.display = m==='cross'?'flex':'none';
+  const aw=document.getElementById('s-axis-wrap');
+  aw.style.display = m==='cross'?'none':'flex';
+  document.getElementById('s-axis-lbl').textContent = m==='shell'?'EKSEN x=c':'EKSEN y=c';
+  const fl=document.getElementById('s-fn-lbl');
+  fl.textContent = m==='washer'?'DIŞ FONKSİYON f(x)'
+    : m==='cross'?'FONKSİYON f(x) — kesit yüksekliği'
+    : m==='shell'?'FONKSİYON f(x) — yükseklik'
+    : 'FONKSİYON f(x) — döndürülecek eğri';
+}
 
 function rebuildSolid(doAnim){
   document.getElementById('s-errmsg').textContent='';
-  let f,a,b,n;
+  if(solidAnimT){cancelAnimationFrame(solidAnimT);solidAnimT=null;}
+  const method=document.getElementById('s-method').value;
+  let f,g=null,a,b,n,c=0,shape='square';
   try{
     f=compile(document.getElementById('s-fn').value);
+    if(method==='washer')g=compile(document.getElementById('s-gn').value);
     a=parseFloat(document.getElementById('s-a').value);
     b=parseFloat(document.getElementById('s-b').value);
     n=parseInt(document.getElementById('s-n').value);
+    if(method!=='cross'){c=parseFloat(document.getElementById('s-c').value);if(!isFinite(c))c=0;}
+    shape=document.getElementById('s-shape').value;
     if(!isFinite(a)||!isFinite(b))throw new Error('a ve b sayı olmalı');
     if(a===b)throw new Error('a ≠ b olmalı');
     if(a>b)[a,b]=[b,a];
   }catch(e){document.getElementById('s-errmsg').textContent='⚠ '+e.message;return;}
 
   const dx=(b-a)/n;
-  const exactVol=simpson(x=>Math.PI*f(x)*f(x),a,b);
-  let approxVol=0;
-  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;const r=f(x);approxVol+=Math.PI*r*r*dx;}
-
-  document.getElementById('s-approx').textContent=approxVol.toFixed(4);
-  document.getElementById('s-exact').textContent=exactVol.toFixed(4);
-  document.getElementById('s-err').textContent=Math.abs(exactVol-approxVol).toExponential(2);
-
-  // scale
-  let rmax=0;
-  for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;const r=Math.abs(f(x));if(isFinite(r))rmax=Math.max(rmax,r);}
-  if(rmax<1e-9)rmax=1;
   TR.sx=PLOT_W/(b-a);TR.ox=-PLOT_W/2;
-  const rScale=3.5/rmax;
-  const X=x=>TR.ox+(x-a)*TR.sx, R=r=>Math.abs(r)*rScale;
+  const X=x=>TR.ox+(x-a)*TR.sx;
+
+  // dispatch
+  if(method==='disk')   buildDisk(f,a,b,n,c,dx,X,doAnim);
+  else if(method==='washer') buildWasher(f,g,a,b,n,c,dx,X,doAnim);
+  else if(method==='shell')  buildShell(f,a,b,n,c,dx,X,doAnim);
+  else                  buildCross(f,a,b,n,shape,dx,X,doAnim);
+}
+
+/* ---- shared scale helper ---- */
+function radScale(maxVal){const m=(isFinite(maxVal)&&maxVal>1e-9)?maxVal:1;return 3.6/m;}
+
+/* ---------- DISK : y=c ekseni ---------- */
+function buildDisk(f,a,b,n,c,dx,X,doAnim){
+  const exact=simpson(x=>Math.PI*Math.pow(f(x)-c,2),a,b);
+  let approx=0;const rows=[];
+  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;const R=f(x)-c;approx+=Math.PI*R*R*dx;rows.push([x,R]);}
+  let rmax=0;for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;rmax=Math.max(rmax,Math.abs(f(x)-c));}
+  const sc=radScale(rmax), R=v=>Math.abs(v)*sc;
+
+  clearWorld();drawRevAxisX(X,a,b,'y='+c);
+  // profile (radius)
+  const prof=[];for(let i=0;i<=160;i++){const x=a+(b-a)*i/160;const r=R(f(x)-c);if(isFinite(r))prof.push(new THREE.Vector3(X(x),r,0));}
+  WG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(prof),new THREE.LineBasicMaterial({color:0x9ecbff})));
+  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;cylX(X(x),R(f(x)-c),dx*TR.sx*0.85,0x3fb950,0.26);}
+  // lathe profile
+  const lp=[];for(let i=0;i<=120;i++){const x=a+(b-a)*i/120;const r=R(f(x)-c);if(isFinite(r))lp.push(new THREE.Vector2(Math.max(r,0),X(x)));}
+  solidData={lp};WG.position.y=-1.5;
+  if(!doAnim)addLatheX(lp,Math.PI*2,0x58a6ff,0.62);
+
+  finishSolid(exact,approx,
+    `V = π·∫[${a},${b}] [f(x)−c]² dx · c=${c}<br>f(x)=${document.getElementById('s-fn').value} · n=${n}`,
+    'ov-o');
+  stepsTable('Disk Yöntemi (y=c)',
+    `V = π·∫ [f(x)−c]² dx ,  c=${c}<br>Vₙ = Σ π·[f(xᵢ*)−c]²·Δx ,  Δx=${dx.toFixed(4)}`,
+    ['i','xᵢ*','R=f−c','π·R²·Δx'],
+    rows.map(([x,Rv],i)=>[i,x.toFixed(3),`<span class="hi">${Rv.toFixed(3)}</span>`,(Math.PI*Rv*Rv*dx).toFixed(4)]),
+    n,approx,'Vₙ');
+  if(doAnim)sweepLatheX([{lp,color:0x58a6ff,op:0.62}]);
+}
+
+/* ---------- WASHER : iki eğri, y=c ---------- */
+function buildWasher(f,g,a,b,n,c,dx,X,doAnim){
+  const exact=simpson(x=>Math.PI*Math.abs(Math.pow(f(x)-c,2)-Math.pow(g(x)-c,2)),a,b);
+  let approx=0;const rows=[];
+  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;const Ro=f(x)-c,ri=g(x)-c;approx+=Math.PI*Math.abs(Ro*Ro-ri*ri)*dx;rows.push([x,Ro,ri]);}
+  let rmax=0;for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;rmax=Math.max(rmax,Math.abs(f(x)-c),Math.abs(g(x)-c));}
+  const sc=radScale(rmax), R=v=>Math.abs(v)*sc;
+
+  clearWorld();drawRevAxisX(X,a,b,'y='+c);
+  // profiles
+  for(const[fn,col] of [[f,0x9ecbff],[g,0xf0a878]]){
+    const prof=[];for(let i=0;i<=160;i++){const x=a+(b-a)*i/160;const r=R(fn(x)-c);if(isFinite(r))prof.push(new THREE.Vector3(X(x),r,0));}
+    WG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(prof),new THREE.LineBasicMaterial({color:col})));
+  }
+  // washer rings
+  for(let i=0;i<n;i++){
+    const x=a+(i+0.5)*dx,ro=R(f(x)-c),ri=R(g(x)-c);
+    const lo=Math.min(ro,ri),hi=Math.max(ro,ri);
+    cylXring(X(x),hi,lo,dx*TR.sx*0.85,0x3fb950,0.26);
+  }
+  const lpO=[],lpI=[];
+  for(let i=0;i<=120;i++){const x=a+(b-a)*i/120;
+    lpO.push(new THREE.Vector2(Math.max(R(f(x)-c),0),X(x)));
+    lpI.push(new THREE.Vector2(Math.max(R(g(x)-c),0),X(x)));}
+  solidData={lpO,lpI};WG.position.y=-1.5;
+  if(!doAnim){addLatheX(lpO,Math.PI*2,0x58a6ff,0.45);addLatheX(lpI,Math.PI*2,0xf0883e,0.85);}
+
+  finishSolid(exact,approx,
+    `V = π·∫ |[f−c]²−[g−c]²| dx · c=${c}<br>f=${document.getElementById('s-fn').value}, g=${document.getElementById('s-gn').value} · n=${n}`,
+    'ov-o');
+  stepsTable('Pul (Washer) Yöntemi',
+    `V = π·∫ ([f−c]² − [g−c]²) dx ,  c=${c}<br>Δx=${dx.toFixed(4)}`,
+    ['i','xᵢ*','R=f−c','r=g−c','π(R²−r²)Δx'],
+    rows.map(([x,Ro,ri],i)=>[i,x.toFixed(3),`<span class="hi">${Ro.toFixed(3)}</span>`,`<span class="og">${ri.toFixed(3)}</span>`,(Math.PI*Math.abs(Ro*Ro-ri*ri)*dx).toFixed(4)]),
+    n,approx,'Vₙ');
+  if(doAnim)sweepLatheX([{lp:lpO,color:0x58a6ff,op:0.45},{lp:lpI,color:0xf0883e,op:0.85}]);
+}
+
+/* ---------- SHELL : x=c ekseni ---------- */
+function buildShell(f,a,b,n,c,dx,X,doAnim){
+  const exact=simpson(x=>2*Math.PI*Math.abs(x-c)*Math.abs(f(x)),a,b);
+  let approx=0;const rows=[];
+  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;const rad=Math.abs(x-c),h=Math.abs(f(x));approx+=2*Math.PI*rad*h*dx;rows.push([x,rad,h]);}
+  let hmax=0;for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;hmax=Math.max(hmax,Math.abs(f(x)));}
+  const ys=radScale(hmax)*0.9, H=v=>Math.abs(v)*ys;
+  const xc=X(c);
 
   clearWorld();
-  // revolution axis
-  addLine(new THREE.Vector3(X(a)-0.4,0,0),new THREE.Vector3(X(b)+0.9,0,0),0xf0883e);
-  addLabel('Dönel eksen (x)','#f0883e').position.set(X(b)+2.0,0,0);
+  // vertical axis x=c
+  addLine(new THREE.Vector3(xc,-0.4,0),new THREE.Vector3(xc,H(hmax)+1.0,0),0xf0883e);
+  addLabel('eksen x='+c,'#f0883e').position.set(xc,H(hmax)+1.4,0);
   addLabel('a='+a.toFixed(1),'#8b949e').position.set(X(a),-0.7,0);
   addLabel('b='+b.toFixed(1),'#8b949e').position.set(X(b),-0.7,0);
+  // generating curve
+  const prof=[];for(let i=0;i<=160;i++){const x=a+(b-a)*i/160;const h=H(f(x));if(isFinite(h))prof.push(new THREE.Vector3(X(x),h,0));}
+  WG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(prof),new THREE.LineBasicMaterial({color:0x9ecbff})));
 
-  // profile curve
-  const profPts=[];
-  for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;const r=f(x);if(isFinite(r))profPts.push(new THREE.Vector3(X(x),R(r),0));}
-  WG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(profPts),new THREE.LineBasicMaterial({color:0x9ecbff,linewidth:2})));
-
-  // disk slices
+  // shells (open cylinders around vertical axis)
+  solidData={shells:[],xc};
   for(let i=0;i<n;i++){
-    const xl=a+i*dx,xr=xl+dx,xm=(xl+xr)/2;
-    const r=R(f(xm)), thick=dx*TR.sx*0.85;
-    const geo=new THREE.CylinderGeometry(r,r,thick,30,1,false);
-    geo.rotateZ(Math.PI/2);
-    const mat=new THREE.MeshStandardMaterial({color:0x3fb950,transparent:true,opacity:0.28,metalness:0.3,roughness:0.5,side:THREE.DoubleSide});
-    const disk=new THREE.Mesh(geo,mat);
-    disk.position.set(X(xm),0,0);
-    disk.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x3fb950,transparent:true,opacity:0.55})));
-    WG.add(disk);
-  }
-
-  // lathe profile
-  const lp=[];
-  for(let i=0;i<=120;i++){const x=a+(b-a)*i/120;const r=R(f(x));if(isFinite(r)&&r>=0)lp.push(new THREE.Vector2(r,X(x)));}
-
-  solidMesh=null;
-  if(!doAnim){
-    buildLathe(lp,Math.PI*2);
+    const x=a+(i+0.5)*dx,rad=Math.abs(X(x)-xc),h=H(f(x));
+    if(rad<0.01||h<0.005)continue;
+    solidData.shells.push({rad,h});
+    shellCyl(xc,rad,h,0x58a6ff,doAnim?0.001:Math.PI*2,0.5);
   }
   WG.position.y=-1.5;
 
-  const fn=document.getElementById('s-fn').value;
-  document.getElementById('overlay').innerHTML=
-    `V = π·∫[${a},${b}] [f(x)]² dx<br>f(x)=${fn} · n=${n}<br>`+
-    `<span class="big ov-o">Vₙ ≈ ${approxVol.toFixed(4)}</span>`;
-
-  buildSolidSteps(f,a,b,n,dx,approxVol);
-  if(doAnim)animateSolidSweep(lp);
+  finishSolid(exact,approx,
+    `V = 2π·∫ |x−c|·f(x) dx · c=${c}<br>f(x)=${document.getElementById('s-fn').value} · n=${n}`,
+    'ov-o');
+  stepsTable('Kabuk (Shell) Yöntemi',
+    `V = 2π·∫ |x−c|·f(x) dx ,  c=${c}<br>Vₙ = Σ 2π·|xᵢ*−c|·f(xᵢ*)·Δx ,  Δx=${dx.toFixed(4)}`,
+    ['i','xᵢ*','r=|x−c|','h=f','2π·r·h·Δx'],
+    rows.map(([x,rad,h],i)=>[i,x.toFixed(3),`<span class="og">${rad.toFixed(3)}</span>`,`<span class="hi">${h.toFixed(3)}</span>`,(2*Math.PI*rad*h*dx).toFixed(4)]),
+    n,approx,'Vₙ');
+  if(doAnim)sweepShells();
 }
 
-function buildLathe(lp,phi){
-  if(solidMesh){WG.remove(solidMesh);solidMesh=null;}
-  if(lp.length<2)return;
-  const geo=new THREE.LatheGeometry(lp,56,0,Math.max(0.01,phi));
-  geo.rotateZ(-Math.PI/2);
-  solidMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({
-    color:0x58a6ff,emissive:0x0a1f40,metalness:0.45,roughness:0.3,transparent:true,opacity:0.70,side:THREE.DoubleSide}));
-  WG.add(solidMesh);
+/* ---------- CROSS-SECTION ---------- */
+function buildCross(f,a,b,n,shape,dx,X,doAnim){
+  const k=CROSS_K[shape];
+  const exact=simpson(x=>k*Math.pow(Math.abs(f(x)),2),a,b);
+  let approx=0;const rows=[];
+  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;const h=Math.abs(f(x));approx+=k*h*h*dx;rows.push([x,h]);}
+  let hmax=0;for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;hmax=Math.max(hmax,Math.abs(f(x)));}
+  const ys=radScale(hmax)*0.85, H=v=>Math.abs(v)*ys;
+
+  clearWorld();
+  addLine(new THREE.Vector3(X(a)-0.4,0,0),new THREE.Vector3(X(b)+0.9,0,0),0xf0883e);
+  addLabel('taban (x)','#f0883e').position.set(X(b)+1.7,0,0);
+  addLabel('a='+a.toFixed(1),'#8b949e').position.set(X(a),-0.7,0);
+  addLabel('b='+b.toFixed(1),'#8b949e').position.set(X(b),-0.7,0);
+  // base region curve
+  const prof=[];for(let i=0;i<=160;i++){const x=a+(b-a)*i/160;const h=H(f(x));if(isFinite(h))prof.push(new THREE.Vector3(X(x),h,0));}
+  WG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(prof),new THREE.LineBasicMaterial({color:0x9ecbff})));
+
+  solidData={prisms:[]};
+  for(let i=0;i<n;i++){
+    const x=a+(i+0.5)*dx,h=H(f(x)),w=dx*TR.sx*0.9;
+    const m=crossPrism(shape,X(x),h,w);
+    if(m){solidData.prisms.push(m);if(doAnim){m.scale.set(0.001,0.001,0.001);}}
+  }
+  WG.position.y=-1.5;
+
+  finishSolid(exact,approx,
+    `V = ∫ A(x) dx · ${CROSS_NAME[shape]}<br>f(x)=${document.getElementById('s-fn').value} · n=${n}`,
+    'ov-o');
+  stepsTable('Kesit Hacmi — '+CROSS_NAME[shape],
+    `V = ∫ A(x) dx ,  A(x) = k·h² ,  k=${k.toFixed(4)}<br>h = f(x) (taban),  Δx=${dx.toFixed(4)}`,
+    ['i','xᵢ*','h=f','A=k·h²','A·Δx'],
+    rows.map(([x,h],i)=>[i,x.toFixed(3),`<span class="hi">${h.toFixed(3)}</span>`,(k*h*h).toFixed(3),(k*h*h*dx).toFixed(4)]),
+    n,approx,'Vₙ');
+  if(doAnim)growPrisms();
 }
 
-function animateSolidSweep(lp){
+/* ---------- geometry primitives ---------- */
+function drawRevAxisX(X,a,b,lbl){
+  addLine(new THREE.Vector3(X(a)-0.4,0,0),new THREE.Vector3(X(b)+0.9,0,0),0xf0883e);
+  addLabel('dönel eksen '+lbl,'#f0883e').position.set(X(b)+2.1,0,0);
+  addLabel('a='+a.toFixed(1),'#8b949e').position.set(X(a),-0.7,0);
+  addLabel('b='+b.toFixed(1),'#8b949e').position.set(X(b),-0.7,0);
+}
+function cylX(px,r,thick,col,op){
+  if(r<0.002)return;
+  const geo=new THREE.CylinderGeometry(r,r,thick,28,1,false);geo.rotateZ(Math.PI/2);
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:col,transparent:true,opacity:op,metalness:0.3,roughness:0.5,side:THREE.DoubleSide}));
+  m.position.set(px,0,0);
+  m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.5})));
+  WG.add(m);
+}
+function cylXring(px,ro,ri,thick,col,op){
+  if(ro<0.002)return;
+  // outer shell
+  const go=new THREE.CylinderGeometry(ro,ro,thick,28,1,true);go.rotateZ(Math.PI/2);
+  const mo=new THREE.Mesh(go,new THREE.MeshStandardMaterial({color:col,transparent:true,opacity:op,side:THREE.DoubleSide}));
+  mo.position.set(px,0,0);WG.add(mo);
+  // annulus end caps
+  const ring=new THREE.RingGeometry(Math.max(ri,0.001),ro,28);ring.rotateY(Math.PI/2);
+  for(const s of [thick/2,-thick/2]){
+    const rm=new THREE.Mesh(ring,new THREE.MeshStandardMaterial({color:col,transparent:true,opacity:op+0.1,side:THREE.DoubleSide}));
+    rm.position.set(px+s,0,0);WG.add(rm);
+  }
+}
+function shellCyl(xc,rad,h,col,phi,op){
+  const geo=new THREE.CylinderGeometry(rad,rad,h,40,1,true,0,Math.max(0.01,phi));
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:col,emissive:0x0a1f40,transparent:true,opacity:op,metalness:0.4,roughness:0.35,side:THREE.DoubleSide}));
+  m.position.set(xc,h/2,0);WG.add(m);return m;
+}
+function addLatheX(lp,phi,col,op){
+  if(lp.length<2)return null;
+  const geo=new THREE.LatheGeometry(lp,56,0,Math.max(0.01,phi));geo.rotateZ(-Math.PI/2);
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:col,emissive:0x0a1f40,metalness:0.45,roughness:0.3,transparent:true,opacity:op,side:THREE.DoubleSide}));
+  WG.add(m);solidMeshes.push(m);return m;
+}
+function crossPrism(shape,px,h,w){
+  if(h<0.005)return null;
+  const sh=new THREE.Shape();           // shape-X → world Z, shape-Y → world Y
+  if(shape==='square'){sh.moveTo(-h/2,0);sh.lineTo(h/2,0);sh.lineTo(h/2,h);sh.lineTo(-h/2,h);}
+  else if(shape==='tri'){sh.moveTo(-h/2,0);sh.lineTo(h/2,0);sh.lineTo(0,(Math.sqrt(3)/2)*h);}
+  else{const r=h/2;sh.moveTo(-r,r);sh.absarc(0,r,r,Math.PI,0,true);} // semicircle bulging +Z, diameter on Y 0..h
+  const geo=new THREE.ExtrudeGeometry(sh,{depth:w,bevelEnabled:false});
+  // map shape(x,y,z) → world(z→X width, y→Y height, x→Z): rotateY 90° sends shapeZ→X
+  geo.rotateY(Math.PI/2);
+  geo.translate(px-w/2,0,0);
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0x58a6ff,emissive:0x0a1f40,metalness:0.3,roughness:0.45,transparent:true,opacity:0.78,side:THREE.DoubleSide}));
+  m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x0d1117,transparent:true,opacity:0.3})));
+  WG.add(m);return m;
+}
+
+/* ---------- animations ---------- */
+function sweepLatheX(layers){
   if(solidAnimT)cancelAnimationFrame(solidAnimT);
   const t0=performance.now(),dur=2400;
   (function step(now){
-    const p=Math.min(1,(now-t0)/dur);
-    const e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; // easeInOut
-    buildLathe(lp,e*Math.PI*2);
+    const p=Math.min(1,(now-t0)/dur), e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+    solidMeshes.forEach(m=>WG.remove(m));solidMeshes=[];
+    layers.forEach(L=>addLatheX(L.lp,e*Math.PI*2,L.color,L.op));
+    if(p<1)solidAnimT=requestAnimationFrame(step);
+  })(performance.now());
+}
+function sweepShells(){
+  if(solidAnimT)cancelAnimationFrame(solidAnimT);
+  if(!solidData||!solidData.shells)return;
+  const data=solidData, t0=performance.now(),dur=2400;
+  // remove existing shell meshes (those at axis) by rebuilding
+  (function step(now){
+    const p=Math.min(1,(now-t0)/dur), e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+    solidMeshes.forEach(m=>WG.remove(m));solidMeshes=[];
+    data.shells.forEach(s=>{const m=shellCyl(data.xc,s.rad,s.h,0x58a6ff,e*Math.PI*2,0.5);solidMeshes.push(m);});
+    if(p<1)solidAnimT=requestAnimationFrame(step);
+  })(performance.now());
+}
+function growPrisms(){
+  if(solidAnimT)cancelAnimationFrame(solidAnimT);
+  if(!solidData||!solidData.prisms)return;
+  const arr=solidData.prisms, t0=performance.now(),dur=1400;
+  (function step(now){
+    const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3);
+    arr.forEach((m,i)=>{const d=i/arr.length*0.4, loc=Math.max(0.001,Math.min(1,(e-d)/(1-d)));m.scale.set(loc,loc,loc);});
     if(p<1)solidAnimT=requestAnimationFrame(step);
   })(performance.now());
 }
 
-function buildSolidSteps(f,a,b,n,dx,approxVol){
-  let h=`<div class="fbox">V = π · ∫[a,b] [f(x)]² dx<br>`+
-    `Disk yöntemi: Vₙ = Σᵢ π·[f(xᵢ*)]²·Δx<br>`+
-    `Δx = (${b}−${a})/${n} = <b>${dx.toFixed(4)}</b></div>`;
-  h+=`<table class="st"><thead><tr><th>i</th><th>xᵢ*</th><th>f(xᵢ*)</th><th>r²</th><th>π·r²·Δx</th></tr></thead><tbody>`;
-  for(let i=0;i<n;i++){
-    const x=a+(i+0.5)*dx; let r=f(x);if(!isFinite(r))r=0;
-    const r2=r*r,c=Math.PI*r2*dx;
-    if(n>14&&i===9){h+=`<tr><td colspan="5" style="text-align:center;color:var(--muted)">${n-12} ara satır</td></tr>`;}
-    if(n>14&&i>=9&&i<n-3)continue;
-    h+=`<tr><td>${i}</td><td>${x.toFixed(3)}</td><td class="hi">${r.toFixed(3)}</td><td>${r2.toFixed(3)}</td><td>${c.toFixed(4)}</td></tr>`;
-  }
-  h+=`<tr class="tot"><td colspan="4">Toplam Vₙ</td><td>${approxVol.toFixed(4)}</td></tr></tbody></table>`;
+/* ---------- shared output ---------- */
+function finishSolid(exact,approx,overlayHtml,cls){
+  document.getElementById('s-approx').textContent=approx.toFixed(4);
+  document.getElementById('s-exact').textContent=exact.toFixed(4);
+  document.getElementById('s-err').textContent=Math.abs(exact-approx).toExponential(2);
+  document.getElementById('overlay').innerHTML=overlayHtml+`<br><span class="big ${cls}">Vₙ ≈ ${approx.toFixed(4)}</span>`;
+}
+function stepsTable(title,formula,heads,rows,n,total,totLabel){
+  let h=`<div class="fbox"><b>${title}</b><br>${formula}</div>`;
+  h+=`<table class="st"><thead><tr>`+heads.map(x=>`<th>${x}</th>`).join('')+`</tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    if(n>14&&i===9)h+=`<tr><td colspan="${heads.length}" style="text-align:center;color:var(--muted)">${n-12} ara satır gizlendi</td></tr>`;
+    if(n>14&&i>=9&&i<n-3)return;
+    h+=`<tr>`+r.map(c=>`<td>${c}</td>`).join('')+`</tr>`;
+  });
+  h+=`<tr class="tot"><td colspan="${heads.length-1}">Toplam ${totLabel}</td><td>${total.toFixed(4)}</td></tr></tbody></table>`;
   document.getElementById('s-steps').innerHTML=h;
 }
 
@@ -679,12 +890,17 @@ document.getElementById('autorot').addEventListener('change',e=>autoRotate=e.tar
 document.getElementById('r-reset').addEventListener('click',resetCam);
 
 // Solid
+document.getElementById('s-method').addEventListener('change',()=>{solidUI();rebuildSolid(true);});
+document.getElementById('s-shape').addEventListener('change',()=>rebuildSolid(true));
 document.getElementById('s-pre').addEventListener('click',e=>{if(e.target.dataset.f){document.getElementById('s-fn').value=e.target.dataset.f;rebuildSolid(true);}});
-['s-fn','s-a','s-b'].forEach(id=>document.getElementById(id).addEventListener('change',()=>rebuildSolid(false)));
+document.getElementById('s-gpre').addEventListener('click',e=>{if(e.target.dataset.g){document.getElementById('s-gn').value=e.target.dataset.g;rebuildSolid(true);}});
+['s-fn','s-gn','s-a','s-b','s-c'].forEach(id=>document.getElementById(id).addEventListener('change',()=>rebuildSolid(false)));
 document.getElementById('s-fn').addEventListener('keydown',e=>{if(e.key==='Enter')rebuildSolid(true);});
+document.getElementById('s-gn').addEventListener('keydown',e=>{if(e.key==='Enter')rebuildSolid(true);});
 document.getElementById('s-n').addEventListener('input',e=>{document.getElementById('s-nv').textContent=e.target.value;rebuildSolid(false);});
 document.getElementById('s-anim').addEventListener('click',()=>rebuildSolid(true));
 document.getElementById('s-reset').addEventListener('click',resetCam);
+solidUI();
 
 // Between
 document.getElementById('b-fpre').addEventListener('click',e=>{if(e.target.dataset.f){document.getElementById('b-fn').value=e.target.dataset.f;rebuildBetween(true);}});
