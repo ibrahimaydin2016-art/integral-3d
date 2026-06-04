@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>İntegral 3D Görselleştirici</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--border:#30363d;--accent:#58a6ff;--accent2:#3fb950;--accent3:#f0883e;--accent4:#a371f7;--text:#e6edf3;--muted:#8b949e;--danger:#f85149;}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;}
+#app{display:flex;height:100vh;width:100vw;}
+#canvas-wrap{flex:1;position:relative;}
+canvas{display:block;}
+#panel{width:370px;background:var(--panel);border-left:1px solid var(--border);padding:13px 15px;overflow-y:auto;display:flex;flex-direction:column;gap:11px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+h1{font-size:16px;margin:0 0 1px;color:var(--accent);}
+.sub{font-size:11px;color:var(--muted);}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;background:var(--bg);border-radius:9px;padding:3px;}
+.tab{background:transparent;border:none;color:var(--muted);font-size:12px;font-weight:600;padding:7px 3px;border-radius:7px;cursor:pointer;transition:.15s;}
+.tab.active{background:var(--panel);color:var(--accent);border:1px solid var(--border);}
+.tab:hover:not(.active){color:var(--text);}
+.mode-panel{display:none;flex-direction:column;gap:11px;}
+.mode-panel.active{display:flex;}
+.field{display:flex;flex-direction:column;gap:4px;}
+label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px;}
+input,select{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:7px 9px;font-size:13px;outline:none;width:100%;}
+input:focus,select:focus{border-color:var(--accent);}
+.row{display:flex;gap:8px;}.row .field{flex:1;}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;}
+.chip{background:var(--bg);border:1px solid var(--border);color:var(--accent);border-radius:20px;padding:3px 9px;font-size:11px;cursor:pointer;transition:.15s;white-space:nowrap;}
+.chip:hover{background:var(--accent);color:#001;}
+.chip.g{color:var(--accent3);}
+.chip.g:hover{background:var(--accent3);}
+.sv{font-size:11px;color:var(--accent);font-weight:700;}
+input[type=range]{padding:0;accent-color:var(--accent);}
+button{border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;}
+.pri{background:var(--accent);color:#04111f;border:none;}
+.pri:hover{filter:brightness(1.1);}
+.sec{background:transparent;border:1px solid var(--border);color:var(--text);font-weight:600;}
+.sec:hover{border-color:var(--accent);background:#1f2733;}
+.warn{background:transparent;border:1px solid var(--accent3);color:var(--accent3);font-weight:600;}
+.warn:hover{background:#2d1a0a;}
+.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.results{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:11px;display:flex;flex-direction:column;gap:7px;}
+.rl{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;}
+.rl .v{font-size:14px;font-weight:700;font-family:Consolas,monospace;}
+.ra .v{color:var(--accent)}.re .v{color:var(--accent2)}.rerr .v{color:var(--danger)}
+.err{color:var(--danger);font-size:11px;min-height:14px;}
+details{background:var(--bg);border:1px solid var(--border);border-radius:8px;}
+details summary{padding:8px 11px;cursor:pointer;font-size:12px;font-weight:600;color:var(--accent3);list-style:none;user-select:none;}
+details summary::-webkit-details-marker{display:none;}
+details summary::before{content:"▶ ";font-size:10px;}
+details[open] summary::before{content:"▼ ";}
+.steps-inner{padding:0 11px 11px;max-height:250px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.fbox{background:var(--panel);border-radius:7px;padding:8px;margin-bottom:8px;font-family:Consolas,monospace;font-size:12px;color:var(--accent2);line-height:1.9;}
+.fbox b{color:var(--text);}
+.st{width:100%;border-collapse:collapse;font-size:11px;font-family:Consolas,monospace;}
+.st th{color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);padding:4px 5px;text-align:right;}
+.st th:first-child{text-align:center;}
+.st td{padding:3px 5px;text-align:right;border-bottom:1px solid #1c2430;}
+.st td:first-child{text-align:center;color:var(--muted);}
+.st tr.tot td{color:var(--accent2);font-weight:700;border-top:1px solid var(--border);}
+.hi{color:var(--accent)!important;}.neg{color:var(--danger)!important;}.og{color:var(--accent3)!important;}.pur{color:var(--accent4)!important;}
+.sw{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text);cursor:pointer;}
+.sw input{width:15px;height:15px;}
+.legend{font-size:11px;color:var(--muted);line-height:1.6;}.legend b{color:var(--text);}
+.footer{margin-top:auto;font-size:10px;color:var(--muted);text-align:center;line-height:1.5;padding-top:6px;border-top:1px solid var(--border);}
+#overlay{position:absolute;left:13px;top:13px;background:rgba(13,17,23,.78);backdrop-filter:blur(4px);border:1px solid var(--border);border-radius:8px;padding:8px 13px;font-size:12px;pointer-events:none;font-family:Consolas,monospace;}
+#overlay .big{font-size:15px;font-weight:700;}
+.ov-g{color:var(--accent2);}.ov-o{color:var(--accent3);}.ov-p{color:var(--accent4);}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="canvas-wrap"><div id="overlay"></div></div>
+<div id="panel">
+
+<div><h1>∫ İntegral 3D Görselleştirici</h1>
+<div class="sub">Riemann · Dönel Cisim · İki Eğri Arası Alan</div></div>
+
+<div class="tabs">
+  <button class="tab active" onclick="setMode('riemann',this)">∫ Riemann</button>
+  <button class="tab" onclick="setMode('solid',this)">⟳ Dönel</button>
+  <button class="tab" onclick="setMode('between',this)">⊓ İki Eğri</button>
+</div>
+
+<!-- ===== RIEMANN ===== -->
+<div id="mode-riemann" class="mode-panel active">
+  <div class="field"><label>FONKSİYON f(x)</label>
+    <input id="r-fn" value="x^2" autocomplete="off" spellcheck="false">
+    <div class="chips" id="r-pre">
+      <span class="chip" data-f="x^2">x²</span><span class="chip" data-f="sin(x)">sin x</span>
+      <span class="chip" data-f="cos(x)+1">cos x+1</span><span class="chip" data-f="sqrt(x)">√x</span>
+      <span class="chip" data-f="x^3-2*x+3">x³-2x+3</span><span class="chip" data-f="exp(-x^2)">e^-x²</span>
+      <span class="chip" data-f="1/(1+x^2)">1/(1+x²)</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field"><label>ALT SINIR a</label><input id="r-a" value="0" autocomplete="off"></div>
+    <div class="field"><label>ÜST SINIR b</label><input id="r-b" value="3" autocomplete="off"></div>
+  </div>
+  <div class="field"><label>DİLİM SAYISI n = <span class="sv" id="r-nv">20</span></label>
+    <input type="range" id="r-n" min="1" max="200" value="20"></div>
+  <div class="field"><label>YÖNTEM</label>
+    <select id="r-method">
+      <option value="left">Sol Uç Noktalar</option><option value="right">Sağ Uç Noktalar</option>
+      <option value="mid" selected>Orta Nokta</option><option value="trap">Yamuk (Trapez)</option>
+    </select>
+  </div>
+  <label class="sw"><input type="checkbox" id="autorot" checked> Otomatik döndür</label>
+  <div class="btnrow"><button class="pri" id="r-anim">▶ Animasyon</button><button class="sec" id="r-conv">∞ Yakınsama</button></div>
+  <button class="sec" id="r-reset">↺ Görünümü Sıfırla</button>
+  <div class="results">
+    <div class="rl ra"><span>Yaklaşık Alan Sₙ</span><span class="v" id="r-approx">—</span></div>
+    <div class="rl re"><span>Gerçek İntegral</span><span class="v" id="r-exact">—</span></div>
+    <div class="rl rerr"><span>Mutlak Hata</span><span class="v" id="r-err">—</span></div>
+  </div>
+  <div class="err" id="r-errmsg"></div>
+  <details><summary>Adım Adım Riemann Formülü</summary><div class="steps-inner" id="r-steps"></div></details>
+</div>
+
+<!-- ===== SOLID ===== -->
+<div id="mode-solid" class="mode-panel">
+  <div class="field"><label>FONKSİYON f(x) — X ekseni etrafında döndür</label>
+    <input id="s-fn" value="sin(x)+1.2" autocomplete="off" spellcheck="false">
+    <div class="chips" id="s-pre">
+      <span class="chip" data-f="sin(x)+1.2">sin x+1.2</span><span class="chip" data-f="sqrt(x)">√x</span>
+      <span class="chip" data-f="x">x</span><span class="chip" data-f="2-x^2/4">2-x²/4</span>
+      <span class="chip" data-f="cos(x)+2">cos x+2</span><span class="chip" data-f="exp(-x/2)+0.5">e^-x/2+.5</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field"><label>ALT SINIR a</label><input id="s-a" value="0" autocomplete="off"></div>
+    <div class="field"><label>ÜST SINIR b</label><input id="s-b" value="3" autocomplete="off"></div>
+  </div>
+  <div class="field"><label>DİSK SAYISI n = <span class="sv" id="s-nv">16</span></label>
+    <input type="range" id="s-n" min="3" max="80" value="16"></div>
+  <div class="btnrow"><button class="pri" id="s-anim">▶ Döndür</button><button class="sec" id="s-reset">↺ Sıfırla</button></div>
+  <div class="results">
+    <div class="rl ra"><span>Yaklaşık Hacim Vₙ</span><span class="v" id="s-approx">—</span></div>
+    <div class="rl re"><span>Gerçek Hacim V</span><span class="v" id="s-exact">—</span></div>
+    <div class="rl rerr"><span>Mutlak Hata</span><span class="v" id="s-err">—</span></div>
+  </div>
+  <div class="err" id="s-errmsg"></div>
+  <details><summary>Adım Adım Disk Yöntemi Formülü</summary><div class="steps-inner" id="s-steps"></div></details>
+</div>
+
+<!-- ===== BETWEEN ===== -->
+<div id="mode-between" class="mode-panel">
+  <div class="field"><label>ÜST FONKSİYON f(x)</label>
+    <input id="b-fn" value="sqrt(x)+1" autocomplete="off" spellcheck="false">
+    <div class="chips" id="b-fpre">
+      <span class="chip" data-f="sqrt(x)+1">√x+1</span><span class="chip" data-f="sin(x)+2">sin x+2</span>
+      <span class="chip" data-f="x+2">x+2</span><span class="chip" data-f="4-x^2/4">4-x²/4</span>
+    </div>
+  </div>
+  <div class="field"><label>ALT FONKSİYON g(x)</label>
+    <input id="b-gn" value="x^2/4" autocomplete="off" spellcheck="false">
+    <div class="chips" id="b-gpre">
+      <span class="chip g" data-g="x^2/4">x²/4</span><span class="chip g" data-g="sin(x)">sin x</span>
+      <span class="chip g" data-g="x/2">x/2</span><span class="chip g" data-g="cos(x)">cos x</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field"><label>ALT SINIR a</label><input id="b-a" value="0" autocomplete="off"></div>
+    <div class="field"><label>ÜST SINIR b</label><input id="b-b" value="3" autocomplete="off"></div>
+  </div>
+  <div class="field"><label>DİLİM SAYISI n = <span class="sv" id="b-nv">20</span></label>
+    <input type="range" id="b-n" min="1" max="100" value="20"></div>
+  <div class="btnrow"><button class="pri" id="b-anim">▶ Animasyon</button><button class="sec" id="b-reset">↺ Sıfırla</button></div>
+  <div class="results">
+    <div class="rl ra"><span>Yaklaşık Alan Aₙ</span><span class="v" id="b-approx">—</span></div>
+    <div class="rl re"><span>Gerçek İntegral</span><span class="v" id="b-exact">—</span></div>
+    <div class="rl rerr"><span>Mutlak Hata</span><span class="v" id="b-err">—</span></div>
+  </div>
+  <div class="err" id="b-errmsg"></div>
+  <details><summary>Adım Adım İki Eğri Formülü</summary><div class="steps-inner" id="b-steps"></div></details>
+</div>
+
+<div class="legend"><b>Kontroller:</b> Sürükle → döndür · Tekerlek → yakınlaş · Sağ tık → kaydır</div>
+<div class="footer">Three.js r128 · Gerçek integral: Simpson yöntemi (n=2000)</div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ── Math compiler ──────────────────────────────────────────── */
+function compile(expr){
+  let s=expr.toLowerCase()
+    .replace(/\^/g,'**').replace(/π|pi/g,'Math.PI')
+    .replace(/(?<![a-z])e(?![a-z0-9])/g,'Math.E');
+  ['sin','cos','tan','asin','acos','atan','sinh','cosh','tanh',
+   'sqrt','cbrt','abs','exp','log','log2','log10','sign','floor','ceil','round']
+    .forEach(f=>{s=s.replace(new RegExp('(?<![a-z])'+f+'\\s*\\(','g'),'Math.'+f+'(');});
+  s=s.replace(/ln\s*\(/g,'Math.log(')
+     .replace(/(\d)\s*([a-z(])/g,'$1*$2').replace(/\)\s*\(/g,')*(');
+  const fn=new Function('x','with(Math){return ('+s+');}');
+  fn(0.5); return fn;
+}
+function simpson(f,a,b,N=2000){
+  const h=(b-a)/N; let sum=f(a)+f(b);
+  for(let i=1;i<N;i++) sum+=(i%2?4:2)*f(a+i*h);
+  return sum*h/3;
+}
+
+/* ── Three.js scene ─────────────────────────────────────────── */
+const wrap=document.getElementById('canvas-wrap');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0d1117);
+scene.fog=new THREE.Fog(0x0d1117,22,50);
+
+const camera=new THREE.PerspectiveCamera(52,wrap.clientWidth/wrap.clientHeight,0.1,100);
+const HOME=new THREE.Vector3(7,7,12);
+camera.position.copy(HOME);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(wrap.clientWidth,wrap.clientHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+wrap.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff,0.5));
+const dl1=new THREE.DirectionalLight(0xffffff,0.85); dl1.position.set(6,12,8); scene.add(dl1);
+const dl2=new THREE.DirectionalLight(0x58a6ff,0.4); dl2.position.set(-8,4,-6); scene.add(dl2);
+const dl3=new THREE.DirectionalLight(0x3fb950,0.25); dl3.position.set(0,-8,4); scene.add(dl3);
+
+/* ── Orbit ──────────────────────────────────────────────────── */
+const orbitTarget=new THREE.Vector3();
+let theta=Math.atan2(HOME.x,HOME.z), phi=Math.acos(HOME.y/HOME.length()), radius=HOME.length();
+function applyCam(){
+  camera.position.set(
+    orbitTarget.x+radius*Math.sin(phi)*Math.sin(theta),
+    orbitTarget.y+radius*Math.cos(phi),
+    orbitTarget.z+radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(orbitTarget);
+}
+applyCam();
+let dragging=false,panning=false,lx=0,ly=0,autoRotate=true;
+const rEl=renderer.domElement;
+rEl.addEventListener('contextmenu',e=>e.preventDefault());
+rEl.addEventListener('mousedown',e=>{dragging=true;panning=e.button===2;lx=e.clientX;ly=e.clientY;autoRotate=false;});
+window.addEventListener('mouseup',()=>{dragging=false;});
+window.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;
+  if(panning){
+    const ps=radius*0.0016;
+    const r=new THREE.Vector3().crossVectors(camera.up,camera.getWorldDirection(new THREE.Vector3())).normalize();
+    orbitTarget.addScaledVector(r,dx*ps).addScaledVector(new THREE.Vector3(0,1,0),dy*ps);
+  }else{theta-=dx*0.01;phi=Math.max(0.08,Math.min(Math.PI-0.08,phi-dy*0.01));}
+  applyCam();
+});
+rEl.addEventListener('wheel',e=>{
+  e.preventDefault();radius*=1+(e.deltaY>0?0.1:-0.1);radius=Math.max(3,Math.min(60,radius));applyCam();
+},{passive:false});
+window.addEventListener('resize',()=>{
+  camera.aspect=wrap.clientWidth/wrap.clientHeight;camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth,wrap.clientHeight);
+});
+function resetCam(){theta=Math.atan2(HOME.x,HOME.z);phi=Math.acos(HOME.y/HOME.length());radius=HOME.length();orbitTarget.set(0,0,0);applyCam();}
+
+/* ── World helpers ──────────────────────────────────────────── */
+let WG=new THREE.Group(); scene.add(WG);
+const PLOT_W=9, DEPTH=1.6;
+let TR={sx:1,ox:0,sy:1};
+
+function clearWorld(){scene.remove(WG);WG=new THREE.Group();scene.add(WG);}
+
+function addGrid(y){const g=new THREE.GridHelper(PLOT_W+3,12,0x30363d,0x1a2133);g.position.y=y;WG.add(g);}
+
+function addLine(p1,p2,col){
+  const g=new THREE.BufferGeometry().setFromPoints([p1,p2]);
+  WG.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:col})));
+}
+
+function addLabel(txt,col='#8b949e'){
+  const c=document.createElement('canvas');c.width=144;c.height=64;
+  const g=c.getContext('2d');g.fillStyle=col;g.font='bold 33px Consolas';g.textAlign='center';
+  g.fillText(txt,72,44);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));
+  sp.scale.set(1.5,0.7,1);WG.add(sp);return sp;
+}
+
+function addRibbon(pts,col,emissive){
+  const pos=[],idx=[];
+  for(let i=0;i<pts.length;i++){const[x,y]=pts[i];pos.push(x,y,-DEPTH/2,x,y,DEPTH/2);}
+  for(let i=0;i<pts.length-1;i++){const k=i*2;idx.push(k,k+1,k+2,k+1,k+3,k+2);}
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geo.setIndex(idx);geo.computeVertexNormals();
+  WG.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:col,emissive,side:THREE.DoubleSide,metalness:0.15,roughness:0.5,transparent:true,opacity:0.88})));
+  WG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(([x,y])=>new THREE.Vector3(x,y,DEPTH/2))),new THREE.LineBasicMaterial({color:col})));
+}
+
+/* ── Mode management ────────────────────────────────────────── */
+let mode='riemann';
+function setMode(m,btn){
+  mode=m;autoRotate=true;
+  document.querySelectorAll('.mode-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('mode-'+m).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  resetCam();
+  if(m==='riemann') rebuildRiemann(false);
+  else if(m==='solid') rebuildSolid(false);
+  else rebuildBetween(false);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RIEMANN MODE
+═══════════════════════════════════════════════════════════════ */
+let rBars=[],rGrowT=null,rConvT=null;
+
+function rebuildRiemann(doAnim){
+  document.getElementById('r-errmsg').textContent='';
+  let f,a,b,n,meth;
+  try{
+    f=compile(document.getElementById('r-fn').value);
+    a=parseFloat(document.getElementById('r-a').value);
+    b=parseFloat(document.getElementById('r-b').value);
+    n=parseInt(document.getElementById('r-n').value);
+    meth=document.getElementById('r-method').value;
+    if(!isFinite(a)||!isFinite(b))throw new Error('a ve b sayı olmalı');
+    if(a===b)throw new Error('a ≠ b olmalı');
+    if(a>b)[a,b]=[b,a];
+  }catch(e){document.getElementById('r-errmsg').textContent='⚠ '+e.message;return;}
+
+  const S=400; let ymax=-Infinity,ymin=Infinity; const pts=[];
+  for(let i=0;i<=S;i++){
+    const x=a+(b-a)*i/S; let y=f(x);
+    if(!isFinite(y))y=0;
+    pts.push([0,0]); // placeholder, fill next
+    pts[pts.length-1][0]=x; pts[pts.length-1][1]=y;
+    ymax=Math.max(ymax,y);ymin=Math.min(ymin,y);
+  }
+  ymax=Math.max(ymax,0);ymin=Math.min(ymin,0);
+  const yspan=(ymax-ymin)||1;
+  TR.sx=PLOT_W/(b-a);TR.ox=-PLOT_W/2;TR.sy=6/yspan;
+  const X=x=>TR.ox+(x-a)*TR.sx, Y=y=>y*TR.sy, BY=Y(0);
+
+  clearWorld();
+  addGrid(BY);
+  addLine(new THREE.Vector3(X(a),BY,0),new THREE.Vector3(X(b)+0.6,BY,0),0x8b949e);
+  addLine(new THREE.Vector3(X(a),BY,0),new THREE.Vector3(X(a),Y(ymax)+0.7,0),0x8b949e);
+  addLabel('a='+a.toFixed(1)).position.set(X(a),BY-0.75,0);
+  addLabel('b='+b.toFixed(1)).position.set(X(b),BY-0.75,0);
+  addLabel('x','#58a6ff').position.set(X(b)+1.1,BY,0);
+  addLabel('f(x)','#58a6ff').position.set(X(a)-0.3,Y(ymax)+1,0);
+
+  // curve ribbon
+  const scPts=pts.map(([x,y])=>[X(x),Y(y)]);
+  addRibbon(scPts,0x58a6ff,0x0d2f55);
+
+  // bars
+  const dx=(b-a)/n; let approx=0; rBars=[];
+  for(let i=0;i<n;i++){
+    const xl=a+i*dx,xr=xl+dx;
+    let h;
+    if(meth==='left')h=f(xl);
+    else if(meth==='right')h=f(xr);
+    else if(meth==='mid')h=f((xl+xr)/2);
+    else h=(f(xl)+f(xr))/2;
+    if(!isFinite(h))h=0;
+    approx+=h*dx;
+    const wS=dx*TR.sx*0.92, hS=Math.abs(h)*TR.sy, cx=X((xl+xr)/2), cy=BY+(h>=0?hS/2:-hS/2);
+    const geo=new THREE.BoxGeometry(wS||0.001,Math.max(hS,0.001),DEPTH);
+    const mat=new THREE.MeshStandardMaterial({color:h>=0?0x3fb950:0xf85149,metalness:0.28,roughness:0.45,transparent:true,opacity:0.82,emissive:h>=0?0x0d3318:0x3d0f0d});
+    const box=new THREE.Mesh(geo,mat);
+    box.position.set(cx,doAnim?BY:cy,0);
+    box.userData={ty:cy,full:Math.max(hS,0.001)};
+    box.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x0d1117,transparent:true,opacity:0.35})));
+    WG.add(box); rBars.push(box);
+  }
+  WG.position.y=-2;
+
+  const exact=simpson(f,a,b);
+  document.getElementById('r-approx').textContent=approx.toFixed(5);
+  document.getElementById('r-exact').textContent=exact.toFixed(5);
+  document.getElementById('r-err').textContent=Math.abs(exact-approx).toExponential(2);
+
+  // overlay
+  const mn={left:'Sol uç',right:'Sağ uç',mid:'Orta nokta',trap:'Trapez'}[meth];
+  document.getElementById('overlay').innerHTML=
+    `f(x)=${document.getElementById('r-fn').value} [${a},${b}]<br>n=${n} · ${mn}<br>`+
+    `<span class="big ov-g">Sₙ ≈ ${approx.toFixed(4)}</span>`;
+
+  buildRiemannSteps(f,a,b,n,meth,dx,approx);
+  if(doAnim)startRiemannAnim();
+}
+
+function startRiemannAnim(){
+  if(rGrowT)cancelAnimationFrame(rGrowT);
+  const bars=rBars,t0=performance.now(),dur=1300;
+  (function step(now){
+    const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3);
+    bars.forEach((b,i)=>{
+      const d=i/bars.length*0.45, loc=Math.max(0,Math.min(1,(e-d)/(1-d)));
+      b.scale.y=Math.max(0.001,loc);b.position.y=b.userData.ty*loc;
+    });
+    if(p<1)rGrowT=requestAnimationFrame(step);
+  })(performance.now());
+}
+
+function startConverge(){
+  if(rConvT)clearInterval(rConvT);
+  const seq=[1,2,3,5,8,12,18,26,40,60,90,130,180,200]; let i=0;
+  const sl=document.getElementById('r-n');
+  rConvT=setInterval(()=>{
+    if(i>=seq.length){clearInterval(rConvT);rConvT=null;return;}
+    sl.value=seq[i];document.getElementById('r-nv').textContent=seq[i];
+    rebuildRiemann(false);i++;
+  },480);
+}
+
+function buildRiemannSteps(f,a,b,n,meth,dx,approx){
+  const mn={left:'Sol Uç',right:'Sağ Uç',mid:'Orta Nokta',trap:'Trapez'}[meth];
+  const xs={left:'xᵢ = a+i·Δx',right:'xᵢ = a+(i+1)·Δx',mid:'xᵢ = a+(i+½)·Δx',trap:'xᵢ = a+(i+½)·Δx'}[meth];
+  let h=`<div class="fbox">Sₙ = Δx · Σᵢ₌₀ⁿ⁻¹ f(xᵢ*)  <b>[${mn}]</b><br>`+
+    `Δx = (b−a)/n = (${b}−${a})/${n} = <b>${dx.toFixed(4)}</b><br>${xs}</div>`;
+  h+=`<table class="st"><thead><tr><th>i</th><th>xᵢ*</th><th>f(xᵢ*)</th><th>f·Δx</th><th>Toplam</th></tr></thead><tbody>`;
+  let run=0;
+  for(let i=0;i<n;i++){
+    const xl=a+i*dx,xr=xl+dx;
+    let xs2;
+    if(meth==='left')xs2=xl;else if(meth==='right')xs2=xr;else xs2=(xl+xr)/2;
+    let v=f(xs2);if(!isFinite(v))v=0;
+    const c=v*dx;run+=c;
+    if(n>14&&i===9){h+=`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:3px">⋮ (${n-12} ara satır)</td></tr>`;}
+    if(n>14&&i>=9&&i<n-3)continue;
+    h+=`<tr><td>${i}</td><td>${xs2.toFixed(3)}</td><td class="${v>=0?'hi':'neg'}">${v.toFixed(4)}</td><td>${c.toFixed(4)}</td><td>${run.toFixed(4)}</td></tr>`;
+  }
+  h+=`<tr class="tot"><td colspan="4">Toplam Sₙ</td><td>${approx.toFixed(5)}</td></tr></tbody></table>`;
+  document.getElementById('r-steps').innerHTML=h;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SOLID OF REVOLUTION MODE
+═══════════════════════════════════════════════════════════════ */
+let solidMesh=null, solidAnimT=null;
+
+function rebuildSolid(doAnim){
+  document.getElementById('s-errmsg').textContent='';
+  let f,a,b,n;
+  try{
+    f=compile(document.getElementById('s-fn').value);
+    a=parseFloat(document.getElementById('s-a').value);
+    b=parseFloat(document.getElementById('s-b').value);
+    n=parseInt(document.getElementById('s-n').value);
+    if(!isFinite(a)||!isFinite(b))throw new Error('a ve b sayı olmalı');
+    if(a===b)throw new Error('a ≠ b olmalı');
+    if(a>b)[a,b]=[b,a];
+  }catch(e){document.getElementById('s-errmsg').textContent='⚠ '+e.message;return;}
+
+  const dx=(b-a)/n;
+  const exactVol=simpson(x=>Math.PI*f(x)*f(x),a,b);
+  let approxVol=0;
+  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;const r=f(x);approxVol+=Math.PI*r*r*dx;}
+
+  document.getElementById('s-approx').textContent=approxVol.toFixed(4);
+  document.getElementById('s-exact').textContent=exactVol.toFixed(4);
+  document.getElementById('s-err').textContent=Math.abs(exactVol-approxVol).toExponential(2);
+
+  // scale
+  let rmax=0;
+  for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;const r=Math.abs(f(x));if(isFinite(r))rmax=Math.max(rmax,r);}
+  if(rmax<1e-9)rmax=1;
+  TR.sx=PLOT_W/(b-a);TR.ox=-PLOT_W/2;
+  const rScale=3.5/rmax;
+  const X=x=>TR.ox+(x-a)*TR.sx, R=r=>Math.abs(r)*rScale;
+
+  clearWorld();
+  // revolution axis
+  addLine(new THREE.Vector3(X(a)-0.4,0,0),new THREE.Vector3(X(b)+0.9,0,0),0xf0883e);
+  addLabel('Dönel eksen (x)','#f0883e').position.set(X(b)+2.0,0,0);
+  addLabel('a='+a.toFixed(1),'#8b949e').position.set(X(a),-0.7,0);
+  addLabel('b='+b.toFixed(1),'#8b949e').position.set(X(b),-0.7,0);
+
+  // profile curve
+  const profPts=[];
+  for(let i=0;i<=200;i++){const x=a+(b-a)*i/200;const r=f(x);if(isFinite(r))profPts.push(new THREE.Vector3(X(x),R(r),0));}
+  WG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(profPts),new THREE.LineBasicMaterial({color:0x9ecbff,linewidth:2})));
+
+  // disk slices
+  for(let i=0;i<n;i++){
+    const xl=a+i*dx,xr=xl+dx,xm=(xl+xr)/2;
+    const r=R(f(xm)), thick=dx*TR.sx*0.85;
+    const geo=new THREE.CylinderGeometry(r,r,thick,30,1,false);
+    geo.rotateZ(Math.PI/2);
+    const mat=new THREE.MeshStandardMaterial({color:0x3fb950,transparent:true,opacity:0.28,metalness:0.3,roughness:0.5,side:THREE.DoubleSide});
+    const disk=new THREE.Mesh(geo,mat);
+    disk.position.set(X(xm),0,0);
+    disk.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x3fb950,transparent:true,opacity:0.55})));
+    WG.add(disk);
+  }
+
+  // lathe profile
+  const lp=[];
+  for(let i=0;i<=120;i++){const x=a+(b-a)*i/120;const r=R(f(x));if(isFinite(r)&&r>=0)lp.push(new THREE.Vector2(r,X(x)));}
+
+  solidMesh=null;
+  if(!doAnim){
+    buildLathe(lp,Math.PI*2);
+  }
+  WG.position.y=-1.5;
+
+  const fn=document.getElementById('s-fn').value;
+  document.getElementById('overlay').innerHTML=
+    `V = π·∫[${a},${b}] [f(x)]² dx<br>f(x)=${fn} · n=${n}<br>`+
+    `<span class="big ov-o">Vₙ ≈ ${approxVol.toFixed(4)}</span>`;
+
+  buildSolidSteps(f,a,b,n,dx,approxVol);
+  if(doAnim)animateSolidSweep(lp);
+}
+
+function buildLathe(lp,phi){
+  if(solidMesh){WG.remove(solidMesh);solidMesh=null;}
+  if(lp.length<2)return;
+  const geo=new THREE.LatheGeometry(lp,56,0,Math.max(0.01,phi));
+  geo.rotateZ(-Math.PI/2);
+  solidMesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({
+    color:0x58a6ff,emissive:0x0a1f40,metalness:0.45,roughness:0.3,transparent:true,opacity:0.70,side:THREE.DoubleSide}));
+  WG.add(solidMesh);
+}
+
+function animateSolidSweep(lp){
+  if(solidAnimT)cancelAnimationFrame(solidAnimT);
+  const t0=performance.now(),dur=2400;
+  (function step(now){
+    const p=Math.min(1,(now-t0)/dur);
+    const e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2; // easeInOut
+    buildLathe(lp,e*Math.PI*2);
+    if(p<1)solidAnimT=requestAnimationFrame(step);
+  })(performance.now());
+}
+
+function buildSolidSteps(f,a,b,n,dx,approxVol){
+  let h=`<div class="fbox">V = π · ∫[a,b] [f(x)]² dx<br>`+
+    `Disk yöntemi: Vₙ = Σᵢ π·[f(xᵢ*)]²·Δx<br>`+
+    `Δx = (${b}−${a})/${n} = <b>${dx.toFixed(4)}</b></div>`;
+  h+=`<table class="st"><thead><tr><th>i</th><th>xᵢ*</th><th>f(xᵢ*)</th><th>r²</th><th>π·r²·Δx</th></tr></thead><tbody>`;
+  for(let i=0;i<n;i++){
+    const x=a+(i+0.5)*dx; let r=f(x);if(!isFinite(r))r=0;
+    const r2=r*r,c=Math.PI*r2*dx;
+    if(n>14&&i===9){h+=`<tr><td colspan="5" style="text-align:center;color:var(--muted)">${n-12} ara satır</td></tr>`;}
+    if(n>14&&i>=9&&i<n-3)continue;
+    h+=`<tr><td>${i}</td><td>${x.toFixed(3)}</td><td class="hi">${r.toFixed(3)}</td><td>${r2.toFixed(3)}</td><td>${c.toFixed(4)}</td></tr>`;
+  }
+  h+=`<tr class="tot"><td colspan="4">Toplam Vₙ</td><td>${approxVol.toFixed(4)}</td></tr></tbody></table>`;
+  document.getElementById('s-steps').innerHTML=h;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BETWEEN CURVES MODE
+═══════════════════════════════════════════════════════════════ */
+let betBars=[],betGrowT=null;
+
+function rebuildBetween(doAnim){
+  document.getElementById('b-errmsg').textContent='';
+  let f,g,a,b,n;
+  try{
+    f=compile(document.getElementById('b-fn').value);
+    g=compile(document.getElementById('b-gn').value);
+    a=parseFloat(document.getElementById('b-a').value);
+    b=parseFloat(document.getElementById('b-b').value);
+    n=parseInt(document.getElementById('b-n').value);
+    if(!isFinite(a)||!isFinite(b))throw new Error('a ve b sayı olmalı');
+    if(a===b)throw new Error('a ≠ b olmalı');
+    if(a>b)[a,b]=[b,a];
+  }catch(e){document.getElementById('b-errmsg').textContent='⚠ '+e.message;return;}
+
+  const dx=(b-a)/n;
+  const exactArea=simpson(x=>Math.abs(f(x)-g(x)),a,b);
+  let approxArea=0;
+  for(let i=0;i<n;i++){const x=a+(i+0.5)*dx;approxArea+=Math.abs(f(x)-g(x))*dx;}
+
+  document.getElementById('b-approx').textContent=approxArea.toFixed(5);
+  document.getElementById('b-exact').textContent=exactArea.toFixed(5);
+  document.getElementById('b-err').textContent=Math.abs(exactArea-approxArea).toExponential(2);
+
+  // scene bounds
+  const S=300; let ymax=-Infinity,ymin=Infinity; const pF=[],pG=[];
+  for(let i=0;i<=S;i++){
+    const x=a+(b-a)*i/S;
+    let yf=f(x),yg=g(x);
+    if(!isFinite(yf))yf=0;if(!isFinite(yg))yg=0;
+    pF.push([x,yf]);pG.push([x,yg]);
+    ymax=Math.max(ymax,yf,yg);ymin=Math.min(ymin,yf,yg);
+  }
+  ymax=Math.max(ymax,0);ymin=Math.min(ymin,0);
+  const yspan=(ymax-ymin)||1;
+  TR.sx=PLOT_W/(b-a);TR.ox=-PLOT_W/2;TR.sy=6/yspan;
+  const X=x=>TR.ox+(x-a)*TR.sx, Y=y=>y*TR.sy, BY=Y(0);
+
+  clearWorld();
+  addGrid(BY);
+  addLine(new THREE.Vector3(X(a),BY,0),new THREE.Vector3(X(b)+0.6,BY,0),0x8b949e);
+  addLine(new THREE.Vector3(X(a),BY,0),new THREE.Vector3(X(a),Y(ymax)+0.7,0),0x8b949e);
+  addLabel('a='+a.toFixed(1)).position.set(X(a),BY-0.75,0);
+  addLabel('b='+b.toFixed(1)).position.set(X(b),BY-0.75,0);
+
+  // f ribbon (blue)
+  addRibbon(pF.map(([x,y])=>[X(x),Y(y)]),0x58a6ff,0x0d2f55);
+  // g ribbon (orange)
+  addRibbon(pG.map(([x,y])=>[X(x),Y(y)]),0xf0883e,0x3d1500);
+
+  // f & g labels at right edge
+  addLabel('f(x)','#58a6ff').position.set(X(b)+0.3,Y(pF[pF.length-1][1])+0.5,0);
+  addLabel('g(x)','#f0883e').position.set(X(b)+0.3,Y(pG[pG.length-1][1])-0.5,0);
+
+  // bars between curves (purple)
+  betBars=[];
+  for(let i=0;i<n;i++){
+    const xl=a+i*dx,xr=xl+dx,xm=(xl+xr)/2;
+    let yf=f(xm),yg=g(xm);
+    if(!isFinite(yf))yf=0;if(!isFinite(yg))yg=0;
+    const top=Math.max(yf,yg),bot=Math.min(yf,yg);
+    const barH=Math.max((top-bot)*TR.sy,0.001),cy=Y((top+bot)/2),baseY=Y(bot);
+    const wS=dx*TR.sx*0.88;
+    const geo=new THREE.BoxGeometry(wS||0.001,barH,DEPTH);
+    const mat=new THREE.MeshStandardMaterial({color:0xa371f7,metalness:0.25,roughness:0.5,transparent:true,opacity:0.72,emissive:0x1d0a3a});
+    const box=new THREE.Mesh(geo,mat);
+    box.position.set(X(xm),doAnim?baseY:cy,0);
+    box.userData={ty:cy,full:barH,baseY};
+    box.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x0d1117,transparent:true,opacity:0.35})));
+    WG.add(box);betBars.push(box);
+  }
+  WG.position.y=-2;
+
+  const fnF=document.getElementById('b-fn').value, fnG=document.getElementById('b-gn').value;
+  document.getElementById('overlay').innerHTML=
+    `A = ∫|f−g| dx  [${a}, ${b}]<br>`+
+    `f: ${fnF}  g: ${fnG} · n=${n}<br>`+
+    `<span class="big ov-p">Aₙ ≈ ${approxArea.toFixed(4)}</span>`;
+
+  buildBetweenSteps(f,g,a,b,n,dx,approxArea);
+  if(doAnim)startBetweenAnim();
+}
+
+function startBetweenAnim(){
+  if(betGrowT)cancelAnimationFrame(betGrowT);
+  const bars=betBars,t0=performance.now(),dur=1300;
+  (function step(now){
+    const p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,3);
+    bars.forEach((b,i)=>{
+      const d=i/bars.length*0.45,loc=Math.max(0,Math.min(1,(e-d)/(1-d)));
+      const s=Math.max(0.001,loc);
+      b.scale.y=s;
+      b.position.y=b.userData.baseY+b.userData.full*s/2;
+    });
+    if(p<1)betGrowT=requestAnimationFrame(step);
+  })(performance.now());
+}
+
+function buildBetweenSteps(f,g,a,b,n,dx,approxArea){
+  let h=`<div class="fbox">A = ∫[a,b] |f(x) − g(x)| dx<br>`+
+    `Aₙ = Δx · Σᵢ |f(xᵢ*) − g(xᵢ*)|<br>`+
+    `Δx = (${b}−${a})/${n} = <b>${dx.toFixed(4)}</b></div>`;
+  h+=`<table class="st"><thead><tr><th>i</th><th>xᵢ*</th><th>f(xᵢ*)</th><th>g(xᵢ*)</th><th>|f−g|·Δx</th></tr></thead><tbody>`;
+  for(let i=0;i<n;i++){
+    const x=a+(i+0.5)*dx;
+    let yf=f(x),yg=g(x);
+    if(!isFinite(yf))yf=0;if(!isFinite(yg))yg=0;
+    const c=Math.abs(yf-yg)*dx;
+    if(n>14&&i===9){h+=`<tr><td colspan="5" style="text-align:center;color:var(--muted)">${n-12} ara satır</td></tr>`;}
+    if(n>14&&i>=9&&i<n-3)continue;
+    h+=`<tr><td>${i}</td><td>${x.toFixed(3)}</td><td class="hi">${yf.toFixed(3)}</td><td class="og">${yg.toFixed(3)}</td><td>${c.toFixed(4)}</td></tr>`;
+  }
+  h+=`<tr class="tot"><td colspan="4">Toplam Aₙ</td><td>${approxArea.toFixed(5)}</td></tr></tbody></table>`;
+  document.getElementById('b-steps').innerHTML=h;
+}
+
+/* ── Events ─────────────────────────────────────────────────── */
+// Riemann
+document.getElementById('r-pre').addEventListener('click',e=>{if(e.target.dataset.f){document.getElementById('r-fn').value=e.target.dataset.f;rebuildRiemann(true);}});
+['r-fn','r-a','r-b','r-method'].forEach(id=>document.getElementById(id).addEventListener('change',()=>rebuildRiemann(false)));
+document.getElementById('r-fn').addEventListener('keydown',e=>{if(e.key==='Enter')rebuildRiemann(true);});
+document.getElementById('r-n').addEventListener('input',e=>{document.getElementById('r-nv').textContent=e.target.value;rebuildRiemann(false);});
+document.getElementById('r-anim').addEventListener('click',()=>rebuildRiemann(true));
+document.getElementById('r-conv').addEventListener('click',startConverge);
+document.getElementById('autorot').addEventListener('change',e=>autoRotate=e.target.checked);
+document.getElementById('r-reset').addEventListener('click',resetCam);
+
+// Solid
+document.getElementById('s-pre').addEventListener('click',e=>{if(e.target.dataset.f){document.getElementById('s-fn').value=e.target.dataset.f;rebuildSolid(true);}});
+['s-fn','s-a','s-b'].forEach(id=>document.getElementById(id).addEventListener('change',()=>rebuildSolid(false)));
+document.getElementById('s-fn').addEventListener('keydown',e=>{if(e.key==='Enter')rebuildSolid(true);});
+document.getElementById('s-n').addEventListener('input',e=>{document.getElementById('s-nv').textContent=e.target.value;rebuildSolid(false);});
+document.getElementById('s-anim').addEventListener('click',()=>rebuildSolid(true));
+document.getElementById('s-reset').addEventListener('click',resetCam);
+
+// Between
+document.getElementById('b-fpre').addEventListener('click',e=>{if(e.target.dataset.f){document.getElementById('b-fn').value=e.target.dataset.f;rebuildBetween(true);}});
+document.getElementById('b-gpre').addEventListener('click',e=>{if(e.target.dataset.g){document.getElementById('b-gn').value=e.target.dataset.g;rebuildBetween(true);}});
+['b-fn','b-gn','b-a','b-b'].forEach(id=>document.getElementById(id).addEventListener('change',()=>rebuildBetween(false)));
+document.getElementById('b-n').addEventListener('input',e=>{document.getElementById('b-nv').textContent=e.target.value;rebuildBetween(false);});
+document.getElementById('b-anim').addEventListener('click',()=>rebuildBetween(true));
+document.getElementById('b-reset').addEventListener('click',resetCam);
+
+/* ── Render loop ────────────────────────────────────────────── */
+(function loop(){
+  requestAnimationFrame(loop);
+  if(autoRotate&&!dragging){theta+=0.0025;applyCam();}
+  renderer.render(scene,camera);
+})();
+
+rebuildRiemann(true);
+</script>
+</body>
+</html>
